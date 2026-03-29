@@ -1,21 +1,21 @@
 import { motion, AnimatePresence } from "framer-motion";
 
 const messages = [
-  "bestie, your focus is giving ✨nothing✨ rn",
-  "that phone ain't gonna scroll itself... oh wait 💀",
+  "Bro... focus kaha gaya? 💀",
+  "Phone khola ya phone ne tujhe khola?",
+  "Bestie, ye productive lag raha hai tujhe? 😭",
   "pov: you trying to focus but your brain said sike",
-  "this is lowkey your villain origin story of productivity",
   "no thoughts, just vibes... wait that's the problem",
-  "you're literally the main character of distraction",
-  "sir/ma'am this is a focus session, not a scroll sesh",
-  "your attention span is giving goldfish energy 🐟",
   "the intrusive thoughts won again huh",
   "ratio + you got distracted + L + no focus",
-  "it's giving... not focused 💅",
-  "skill issue tbh",
   "bro really said 'lemme just check one thing' 🤡",
   "your brain: 'we don't do focus here'",
   "caught in 4k lacking focus fr fr",
+  "skill issue tbh 💀",
+  "tu focus kar raha tha ya bas pretend? 🫠",
+  "autopilot mode ON — brain OFF",
+  "tera attention span toh goldfish se bhi kam hai 🐟",
+  "it's giving... not focused 💅",
 ];
 
 interface GenZMessageProps {

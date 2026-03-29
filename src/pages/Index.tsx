@@ -4,6 +4,8 @@ import Timer from "@/components/Timer";
 import DistractionDialog from "@/components/DistractionDialog";
 import StatsPanel from "@/components/StatsPanel";
 import GenZMessage from "@/components/GenZMessage";
+import FocusWarning from "@/components/FocusWarning";
+import useDistractionDetector from "@/hooks/useDistractionDetector";
 
 type DistractionReason = "habit" | "bored" | "intentional";
 
@@ -11,6 +13,7 @@ const Index = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [detectionSource, setDetectionSource] = useState<string>("manual");
   const [distractions, setDistractions] = useState({ habit: 0, bored: 0, intentional: 0 });
   const [totalDistractions, setTotalDistractions] = useState(0);
 
@@ -20,19 +23,32 @@ const Index = () => {
     return () => clearInterval(interval);
   }, [isRunning]);
 
+  const handleAutoDetected = useCallback((source: string) => {
+    setDetectionSource(source);
+    setDialogOpen(true);
+  }, []);
+
+  const { setDialogOpen: setDetectorDialogOpen } = useDistractionDetector({
+    enabled: isRunning,
+    inactivityTimeout: 15,
+    randomCheckMin: 30,
+    randomCheckMax: 60,
+    onDetected: handleAutoDetected,
+  });
+
+  // Sync dialog state with detector
+  useEffect(() => {
+    setDetectorDialogOpen(dialogOpen);
+  }, [dialogOpen, setDetectorDialogOpen]);
+
   const handleDistraction = useCallback((reason: DistractionReason) => {
     setDistractions((prev) => ({ ...prev, [reason]: prev[reason] + 1 }));
     setTotalDistractions((t) => t + 1);
     setDialogOpen(false);
   }, []);
 
-  const handleStart = () => {
-    setIsRunning(true);
-  };
-
-  const handleStop = () => {
-    setIsRunning(false);
-  };
+  const handleStart = () => setIsRunning(true);
+  const handleStop = () => setIsRunning(false);
 
   const handleReset = () => {
     setIsRunning(false);
@@ -41,11 +57,15 @@ const Index = () => {
     setTotalDistractions(0);
   };
 
+  const handleManualDistraction = () => {
+    setDetectionSource("manual");
+    setDialogOpen(true);
+  };
+
   const total = distractions.habit + distractions.bored + distractions.intentional;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
       <header className="border-b border-border/50 px-6 py-4">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -63,23 +83,22 @@ const Index = () => {
               className="flex items-center gap-2"
             >
               <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-              <span className="text-xs text-muted-foreground uppercase tracking-widest">Session Active</span>
+              <span className="text-xs text-muted-foreground uppercase tracking-widest">Smart Detection Active</span>
             </motion.div>
           )}
         </div>
       </header>
 
-      {/* Main */}
       <main className="flex-1 flex flex-col items-center justify-center px-6 py-12 gap-10">
-        {/* Timer */}
-        <Timer isRunning={isRunning} elapsedSeconds={elapsed} />
+        <div className="text-center">
+          <Timer isRunning={isRunning} elapsedSeconds={elapsed} />
+          <FocusWarning distractionCount={totalDistractions} elapsedSeconds={elapsed} />
+        </div>
 
-        {/* Gen Z Message */}
         <div className="min-h-[48px] flex items-center justify-center">
           <GenZMessage triggerCount={totalDistractions} />
         </div>
 
-        {/* Controls */}
         <div className="flex items-center gap-4">
           {!isRunning ? (
             <motion.button
@@ -107,7 +126,7 @@ const Index = () => {
               animate={{ opacity: 1, x: 0 }}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => setDialogOpen(true)}
+              onClick={handleManualDistraction}
               className="px-8 py-4 rounded-2xl bg-destructive/10 text-destructive font-bold text-lg border border-destructive/30 hover:bg-destructive/20 transition-all"
             >
               I got distracted 😵‍💫
@@ -127,7 +146,16 @@ const Index = () => {
           )}
         </div>
 
-        {/* Stats */}
+        {isRunning && (
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-xs text-muted-foreground text-center max-w-sm"
+          >
+            🔍 Smart detection is watching for tab switches, inactivity, and random focus checks
+          </motion.p>
+        )}
+
         {(elapsed > 0 || total > 0) && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -141,6 +169,7 @@ const Index = () => {
 
       <DistractionDialog
         open={dialogOpen}
+        detectionSource={detectionSource}
         onSelect={handleDistraction}
         onClose={() => setDialogOpen(false)}
       />
