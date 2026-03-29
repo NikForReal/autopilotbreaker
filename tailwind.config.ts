@@ -12,8 +12,14 @@ export default {
         "2xl": "1400px",
       },
     },
+    fontFamily: {
+      display: ['"Space Grotesk"', 'system-ui', 'sans-serif'],
+      body: ['"Space Grotesk"', 'system-ui', 'sans-serif'],
+      mono: ['"JetBrains Mono"', 'monospace'],
+    },
     extend: {
       colors: {
+        neon: "hsl(var(--primary))",
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
