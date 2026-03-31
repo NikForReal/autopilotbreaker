@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import Timer from "@/components/Timer";
 import DistractionDialog from "@/components/DistractionDialog";
 import StatsPanel from "@/components/StatsPanel";
 import GenZMessage from "@/components/GenZMessage";
 import FocusWarning from "@/components/FocusWarning";
 import useDistractionDetector from "@/hooks/useDistractionDetector";
+import { useSessionStorage } from "@/hooks/useSessionStorage";
 
 type DistractionReason = "habit" | "bored" | "intentional";
 
