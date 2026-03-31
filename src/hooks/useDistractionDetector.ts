@@ -1,13 +1,10 @@
 import { useEffect, useRef, useCallback } from "react";
 
-type DetectionSource = "tab_switch" | "inactivity" | "random_check";
+type DetectionSource = "inactivity";
 
 interface UseDistractionDetectorOptions {
   enabled: boolean;
   inactivityTimeout?: number;
-  randomCheckMin?: number;
-  randomCheckMax?: number;
-  tabSwitchDelay?: number;
   popupCooldown?: number;
   onDetected: (source: DetectionSource) => void;
   onDistractionStart?: () => void;
@@ -16,23 +13,32 @@ interface UseDistractionDetectorOptions {
 
 const useDistractionDetector = ({
   enabled,
-  inactivityTimeout = 15,
-  randomCheckMin = 30,
-  randomCheckMax = 60,
-  tabSwitchDelay = 2.5,
-  popupCooldown = 10,
+  inactivityTimeout = 10,
+  popupCooldown = 15,
   onDetected,
   onDistractionStart,
   onDistractionEnd,
 }: UseDistractionDetectorOptions) => {
-  const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const randomCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const tabSwitchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const idleInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const isDialogOpen = useRef(false);
   const isDistracted = useRef(false);
   const lastPopupTime = useRef(0);
-  const tabHiddenAt = useRef<number | null>(null);
-  const isInactive = useRef(false);
+  const idleSeconds = useRef(0);
+  const hasTriggeredForCurrentIdle = useRef(false);
+
+  const startDistraction = useCallback(() => {
+    if (!isDistracted.current) {
+      isDistracted.current = true;
+      onDistractionStart?.();
+    }
+  }, [onDistractionStart]);
+
+  const endDistraction = useCallback(() => {
+    if (isDistracted.current) {
+      isDistracted.current = false;
+      onDistractionEnd?.();
+    }
+  }, [onDistractionEnd]);
 
   const canShowPopup = useCallback(() => {
     if (isDialogOpen.current) return false;
@@ -44,112 +50,62 @@ const useDistractionDetector = ({
   const triggerDetection = useCallback((source: DetectionSource) => {
     if (!canShowPopup()) return;
     lastPopupTime.current = Date.now();
+    idleSeconds.current = 0;
+    hasTriggeredForCurrentIdle.current = true;
+    startDistraction();
     onDetected(source);
-  }, [canShowPopup, onDetected]);
+  }, [canShowPopup, onDetected, startDistraction]);
 
   const setDialogOpen = useCallback((open: boolean) => {
     isDialogOpen.current = open;
-    if (open && !isDistracted.current) {
-      isDistracted.current = true;
-      onDistractionStart?.();
+    if (open) {
+      startDistraction();
+      return;
     }
-    if (!open && isDistracted.current) {
-      isDistracted.current = false;
-      onDistractionEnd?.();
-    }
-  }, [onDistractionStart, onDistractionEnd]);
 
-  // Tab visibility detection with delay
+    endDistraction();
+  }, [endDistraction, startDistraction]);
+
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      idleSeconds.current = 0;
+      hasTriggeredForCurrentIdle.current = false;
+      endDistraction();
+      if (idleInterval.current) {
+        clearInterval(idleInterval.current);
+        idleInterval.current = null;
+      }
+      return;
+    }
 
-    const handler = () => {
-      if (document.hidden) {
-        tabHiddenAt.current = Date.now();
-        // Start a delayed check — only trigger if tab stays hidden
-        tabSwitchTimer.current = setTimeout(() => {
-          if (document.hidden) {
-            if (!isDistracted.current) {
-              isDistracted.current = true;
-              onDistractionStart?.();
-            }
-          }
-        }, tabSwitchDelay * 1000);
-      } else {
-        // Tab became visible again
-        const hiddenDuration = tabHiddenAt.current ? (Date.now() - tabHiddenAt.current) / 1000 : 0;
-        tabHiddenAt.current = null;
+    const resetIdle = () => {
+      idleSeconds.current = 0;
+      hasTriggeredForCurrentIdle.current = false;
 
-        // Clear pending delayed trigger
-        if (tabSwitchTimer.current) {
-          clearTimeout(tabSwitchTimer.current);
-          tabSwitchTimer.current = null;
-        }
-
-        // Only count as distraction if tab was hidden long enough
-        if (hiddenDuration >= tabSwitchDelay) {
-          triggerDetection("tab_switch");
-        } else if (isDistracted.current) {
-          // Short switch — just end distraction silently
-          isDistracted.current = false;
-          onDistractionEnd?.();
-        }
+      if (!isDialogOpen.current) {
+        endDistraction();
       }
     };
 
-    document.addEventListener("visibilitychange", handler);
-    return () => {
-      document.removeEventListener("visibilitychange", handler);
-      if (tabSwitchTimer.current) clearTimeout(tabSwitchTimer.current);
-    };
-  }, [enabled, tabSwitchDelay, triggerDetection, onDistractionStart, onDistractionEnd]);
-
-  // Inactivity detection — combined with tab state
-  useEffect(() => {
-    if (!enabled) return;
-
-    const resetInactivity = () => {
-      isInactive.current = false;
-      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
-      inactivityTimer.current = setTimeout(() => {
-        isInactive.current = true;
-        // Only trigger if user is actually inactive (combined signal)
-        if (!isDistracted.current) {
-          isDistracted.current = true;
-          onDistractionStart?.();
-        }
-        triggerDetection("inactivity");
-      }, inactivityTimeout * 1000);
-    };
-
     const events = ["mousemove", "keydown", "mousedown", "touchstart", "scroll"];
-    events.forEach((e) => window.addEventListener(e, resetInactivity));
-    resetInactivity();
+    events.forEach((eventName) => window.addEventListener(eventName, resetIdle));
+
+    idleInterval.current = setInterval(() => {
+      idleSeconds.current += 1;
+
+      if (idleSeconds.current >= inactivityTimeout && !hasTriggeredForCurrentIdle.current) {
+        triggerDetection("inactivity");
+      }
+    }, 1000);
 
     return () => {
-      events.forEach((e) => window.removeEventListener(e, resetInactivity));
-      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+      events.forEach((eventName) => window.removeEventListener(eventName, resetIdle));
+      if (idleInterval.current) {
+        clearInterval(idleInterval.current);
+        idleInterval.current = null;
+      }
     };
-  }, [enabled, inactivityTimeout, triggerDetection, onDistractionStart]);
-
-  // Random timed checks
-  useEffect(() => {
-    if (!enabled) return;
-
-    const scheduleNext = () => {
-      const delay = (randomCheckMin + Math.random() * (randomCheckMax - randomCheckMin)) * 1000;
-      randomCheckTimer.current = setTimeout(() => {
-        triggerDetection("random_check");
-        scheduleNext();
-      }, delay);
-    };
-
-    scheduleNext();
-
-    return () => {
-      if (randomCheckTimer.current) clearTimeout(randomCheckTimer.current);
-    };
-  }, [enabled, randomCheckMin, randomCheckMax, triggerDetection]);
+  }, [enabled, inactivityTimeout, triggerDetection, endDistraction]);
 
   return { setDialogOpen };
 };
