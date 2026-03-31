@@ -55,6 +55,10 @@ const Index = () => {
   const handleStop = () => setIsRunning(false);
 
   const handleReset = () => {
+    // Save session to localStorage before resetting
+    if (elapsed >= 5) {
+      addSession(elapsed, distractions);
+    }
     setIsRunning(false);
     setElapsed(0);
     setDistractions({ habit: 0, bored: 0, intentional: 0 });
