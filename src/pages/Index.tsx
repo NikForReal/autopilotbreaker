@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import Timer from "@/components/Timer";
@@ -6,6 +6,7 @@ import DistractionDialog from "@/components/DistractionDialog";
 import StatsPanel from "@/components/StatsPanel";
 import GenZMessage from "@/components/GenZMessage";
 import FocusWarning from "@/components/FocusWarning";
+import SessionSummary from "@/components/SessionSummary";
 import useDistractionDetector from "@/hooks/useDistractionDetector";
 import { useSessionStorage } from "@/hooks/useSessionStorage";
 
@@ -22,6 +23,12 @@ const Index = () => {
   const [detectionSource, setDetectionSource] = useState<string>("manual");
   const [distractions, setDistractions] = useState({ habit: 0, bored: 0, intentional: 0 });
   const [totalDistractions, setTotalDistractions] = useState(0);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [summaryData, setSummaryData] = useState<{
+    totalSeconds: number;
+    distractionSeconds: number;
+    distractions: { habit: number; bored: number; intentional: number };
+  } | null>(null);
 
   // Session timer
   useEffect(() => {
@@ -55,6 +62,8 @@ const Index = () => {
     inactivityTimeout: 15,
     randomCheckMin: 30,
     randomCheckMax: 60,
+    tabSwitchDelay: 2.5,
+    popupCooldown: 10,
     onDetected: handleAutoDetected,
     onDistractionStart: handleDistractionStart,
     onDistractionEnd: handleDistractionEnd,
@@ -76,6 +85,8 @@ const Index = () => {
   const handleReset = () => {
     if (elapsed >= 5) {
       addSession(elapsed, distractionTime, distractions);
+      setSummaryData({ totalSeconds: elapsed, distractionSeconds: distractionTime, distractions: { ...distractions } });
+      setSummaryOpen(true);
     }
     setIsRunning(false);
     setElapsed(0);
@@ -133,7 +144,6 @@ const Index = () => {
         <div className="text-center space-y-4">
           <Timer isRunning={isRunning} elapsedSeconds={elapsed} />
 
-          {/* Distraction & Focus Time Display */}
           {(isRunning || elapsed > 0) && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
@@ -204,7 +214,7 @@ const Index = () => {
               onClick={handleReset}
               className="px-6 py-4 rounded-2xl text-muted-foreground hover:text-foreground font-medium transition-colors"
             >
-              Reset
+              End Session
             </motion.button>
           )}
         </div>
@@ -215,7 +225,7 @@ const Index = () => {
             animate={{ opacity: 1 }}
             className="text-xs text-muted-foreground text-center max-w-sm"
           >
-            🔍 Smart detection is watching for tab switches, inactivity, and random focus checks
+            🔍 Smart detection: tab switches (&gt;2.5s), inactivity (15s), random checks — with 10s cooldown
           </motion.p>
         )}
 
@@ -236,6 +246,16 @@ const Index = () => {
         onSelect={handleDistraction}
         onClose={() => setDialogOpen(false)}
       />
+
+      {summaryData && (
+        <SessionSummary
+          open={summaryOpen}
+          onClose={() => setSummaryOpen(false)}
+          totalSeconds={summaryData.totalSeconds}
+          distractionSeconds={summaryData.distractionSeconds}
+          distractions={summaryData.distractions}
+        />
+      )}
     </div>
   );
 };
