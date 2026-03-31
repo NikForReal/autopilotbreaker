@@ -12,6 +12,8 @@ import { useSessionStorage } from "@/hooks/useSessionStorage";
 type DistractionReason = "habit" | "bored" | "intentional";
 
 const Index = () => {
+  const navigate = useNavigate();
+  const { addSession } = useSessionStorage();
   const [isRunning, setIsRunning] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
