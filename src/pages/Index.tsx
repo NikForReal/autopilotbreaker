@@ -59,11 +59,8 @@ const Index = () => {
 
   const { setDialogOpen: setDetectorDialogOpen } = useDistractionDetector({
     enabled: isRunning,
-    inactivityTimeout: 15,
-    randomCheckMin: 30,
-    randomCheckMax: 60,
-    tabSwitchDelay: 2.5,
-    popupCooldown: 10,
+    inactivityTimeout: 10,
+    popupCooldown: 15,
     onDetected: handleAutoDetected,
     onDistractionStart: handleDistractionStart,
     onDistractionEnd: handleDistractionEnd,
@@ -225,7 +222,7 @@ const Index = () => {
             animate={{ opacity: 1 }}
             className="text-xs text-muted-foreground text-center max-w-sm"
           >
-            🔍 Smart detection: tab switches (&gt;2.5s), inactivity (15s), random checks — with 10s cooldown
+            🔍 Smart detection: inactivity only (10s) with a 15s cooldown
           </motion.p>
         )}
 
