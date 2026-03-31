@@ -2,19 +2,27 @@ import { motion } from "framer-motion";
 
 interface StatsPanelProps {
   totalSeconds: number;
+  distractionSeconds: number;
   distractions: { habit: number; bored: number; intentional: number };
 }
 
-const StatsPanel = ({ totalSeconds, distractions }: StatsPanelProps) => {
+const StatsPanel = ({ totalSeconds, distractionSeconds, distractions }: StatsPanelProps) => {
   const total = distractions.habit + distractions.bored + distractions.intentional;
-  const minutes = Math.floor(totalSeconds / 60);
+  const focusedSeconds = Math.max(0, totalSeconds - distractionSeconds);
+  const focusPct = totalSeconds > 0 ? Math.round((focusedSeconds / totalSeconds) * 100) : 100;
+
+  const fmt = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+  };
 
   const stats = [
-    { label: "Total Time", value: `${minutes}m`, icon: "⏱️" },
-    { label: "Distractions", value: total.toString(), icon: "💀" },
-    { label: "Habit", value: distractions.habit.toString(), icon: "🧠" },
-    { label: "Bored", value: distractions.bored.toString(), icon: "😴" },
-    { label: "Intentional", value: distractions.intentional.toString(), icon: "🎯" },
+    { label: "Session", value: fmt(totalSeconds), icon: "⏱️" },
+    { label: "Focused", value: fmt(focusedSeconds), icon: "🎯" },
+    { label: "Distracted", value: fmt(distractionSeconds), icon: "😵" },
+    { label: "Focus %", value: `${focusPct}%`, icon: focusPct >= 70 ? "🟢" : "🔴" },
+    { label: "Count", value: total.toString(), icon: "💀" },
   ];
 
   return (

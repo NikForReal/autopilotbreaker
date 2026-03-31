@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 
 export interface SessionRecord {
   id: string;
   date: string;
   totalSeconds: number;
+  distractionSeconds: number;
   distractions: { habit: number; bored: number; intentional: number };
 }
 
@@ -26,12 +27,13 @@ export function useSessionStorage() {
   const [sessions, setSessions] = useState<SessionRecord[]>(loadSessions);
 
   const addSession = useCallback(
-    (totalSeconds: number, distractions: { habit: number; bored: number; intentional: number }) => {
-      if (totalSeconds < 5) return; // skip tiny sessions
+    (totalSeconds: number, distractionSeconds: number, distractions: { habit: number; bored: number; intentional: number }) => {
+      if (totalSeconds < 5) return;
       const record: SessionRecord = {
         id: crypto.randomUUID(),
         date: new Date().toISOString(),
         totalSeconds,
+        distractionSeconds,
         distractions,
       };
       setSessions((prev) => {
