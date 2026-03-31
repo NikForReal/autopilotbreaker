@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import Timer from "@/components/Timer";
@@ -16,16 +16,34 @@ const Index = () => {
   const { addSession } = useSessionStorage();
   const [isRunning, setIsRunning] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [distractionTime, setDistractionTime] = useState(0);
+  const [isDistracted, setIsDistracted] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [detectionSource, setDetectionSource] = useState<string>("manual");
   const [distractions, setDistractions] = useState({ habit: 0, bored: 0, intentional: 0 });
   const [totalDistractions, setTotalDistractions] = useState(0);
 
+  // Session timer
   useEffect(() => {
     if (!isRunning) return;
     const interval = setInterval(() => setElapsed((e) => e + 1), 1000);
     return () => clearInterval(interval);
   }, [isRunning]);
+
+  // Distraction timer
+  useEffect(() => {
+    if (!isRunning || !isDistracted) return;
+    const interval = setInterval(() => setDistractionTime((t) => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, [isRunning, isDistracted]);
+
+  const handleDistractionStart = useCallback(() => {
+    setIsDistracted(true);
+  }, []);
+
+  const handleDistractionEnd = useCallback(() => {
+    setIsDistracted(false);
+  }, []);
 
   const handleAutoDetected = useCallback((source: string) => {
     setDetectionSource(source);
@@ -38,9 +56,10 @@ const Index = () => {
     randomCheckMin: 30,
     randomCheckMax: 60,
     onDetected: handleAutoDetected,
+    onDistractionStart: handleDistractionStart,
+    onDistractionEnd: handleDistractionEnd,
   });
 
-  // Sync dialog state with detector
   useEffect(() => {
     setDetectorDialogOpen(dialogOpen);
   }, [dialogOpen, setDetectorDialogOpen]);
@@ -55,22 +74,25 @@ const Index = () => {
   const handleStop = () => setIsRunning(false);
 
   const handleReset = () => {
-    // Save session to localStorage before resetting
     if (elapsed >= 5) {
-      addSession(elapsed, distractions);
+      addSession(elapsed, distractionTime, distractions);
     }
     setIsRunning(false);
     setElapsed(0);
+    setDistractionTime(0);
+    setIsDistracted(false);
     setDistractions({ habit: 0, bored: 0, intentional: 0 });
     setTotalDistractions(0);
   };
 
   const handleManualDistraction = () => {
     setDetectionSource("manual");
+    setIsDistracted(true);
     setDialogOpen(true);
   };
 
   const total = distractions.habit + distractions.bored + distractions.intentional;
+  const focusedTime = Math.max(0, elapsed - distractionTime);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -108,8 +130,31 @@ const Index = () => {
       </header>
 
       <main className="flex-1 flex flex-col items-center justify-center px-6 py-12 gap-10">
-        <div className="text-center">
+        <div className="text-center space-y-4">
           <Timer isRunning={isRunning} elapsedSeconds={elapsed} />
+
+          {/* Distraction & Focus Time Display */}
+          {(isRunning || elapsed > 0) && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center justify-center gap-6"
+            >
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-primary" />
+                <span className="text-sm text-muted-foreground">Focus:</span>
+                <span className="font-mono text-sm text-primary font-bold">{formatTime(focusedTime)}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-destructive" />
+                <span className="text-sm text-muted-foreground">Distracted:</span>
+                <span className={`font-mono text-sm font-bold ${isDistracted ? "text-destructive animate-pulse" : "text-destructive/70"}`}>
+                  {formatTime(distractionTime)}
+                </span>
+              </div>
+            </motion.div>
+          )}
+
           <FocusWarning distractionCount={totalDistractions} elapsedSeconds={elapsed} />
         </div>
 
@@ -180,7 +225,7 @@ const Index = () => {
             animate={{ opacity: 1, y: 0 }}
             className="w-full max-w-2xl"
           >
-            <StatsPanel totalSeconds={elapsed} distractions={distractions} />
+            <StatsPanel totalSeconds={elapsed} distractionSeconds={distractionTime} distractions={distractions} />
           </motion.div>
         )}
       </main>
@@ -194,5 +239,11 @@ const Index = () => {
     </div>
   );
 };
+
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
 
 export default Index;
