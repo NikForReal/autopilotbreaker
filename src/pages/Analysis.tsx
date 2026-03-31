@@ -1,0 +1,281 @@
+import { useMemo } from "react";
+import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import { loadSessions } from "@/hooks/useSessionStorage";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
+
+const COLORS = {
+  habit: "hsl(0 72% 55%)",
+  bored: "hsl(45 90% 55%)",
+  intentional: "hsl(200 80% 55%)",
+  focused: "hsl(142 72% 50%)",
+};
+
+const chartConfig: ChartConfig = {
+  habit: { label: "Habit", color: COLORS.habit },
+  bored: { label: "Bored", color: COLORS.bored },
+  intentional: { label: "Intentional", color: COLORS.intentional },
+  focused: { label: "Focused", color: COLORS.focused },
+  distracted: { label: "Distracted", color: COLORS.habit },
+};
+
+const Analysis = () => {
+  const navigate = useNavigate();
+  const sessions = loadSessions();
+
+  const stats = useMemo(() => {
+    const totalSeconds = sessions.reduce((s, r) => s + r.totalSeconds, 0);
+    const habit = sessions.reduce((s, r) => s + r.distractions.habit, 0);
+    const bored = sessions.reduce((s, r) => s + r.distractions.bored, 0);
+    const intentional = sessions.reduce((s, r) => s + r.distractions.intentional, 0);
+    const totalDistractions = habit + bored + intentional;
+    const minutes = Math.floor(totalSeconds / 60);
+
+    // Autopilot score: higher = worse (more autopilot)
+    const distractionsPerMin = minutes > 0 ? totalDistractions / minutes : 0;
+    const autopilotScore = Math.min(100, Math.round(distractionsPerMin * 40));
+    const focusScore = 100 - autopilotScore;
+
+    // Determine top reason
+    const reasons = { habit, bored, intentional };
+    const topReason = Object.entries(reasons).sort((a, b) => b[1] - a[1])[0];
+
+    return {
+      totalSeconds,
+      minutes,
+      totalDistractions,
+      habit,
+      bored,
+      intentional,
+      autopilotScore,
+      focusScore,
+      topReason,
+      sessionCount: sessions.length,
+    };
+  }, [sessions]);
+
+  const pieData = [
+    { name: "Habit", value: stats.habit, fill: COLORS.habit },
+    { name: "Bored", value: stats.bored, fill: COLORS.bored },
+    { name: "Intentional", value: stats.intentional, fill: COLORS.intentional },
+  ].filter((d) => d.value > 0);
+
+  const barData = [
+    { name: "Focused", value: Math.max(0, stats.minutes - stats.totalDistractions * 2), fill: COLORS.focused },
+    { name: "Distracted", value: stats.totalDistractions * 2, fill: COLORS.habit },
+  ];
+
+  const insights = useMemo(() => {
+    const msgs: string[] = [];
+    if (stats.totalDistractions === 0 && stats.sessionCount === 0) {
+      msgs.push("No data yet — start a session to see insights! 🚀");
+      return msgs;
+    }
+    if (stats.focusScore >= 80) msgs.push("Your focus is on fire 🔥 Keep it up!");
+    else if (stats.focusScore >= 50) msgs.push("Your focus is improving 📈");
+    else msgs.push("You are getting distracted frequently ⚠️");
+
+    if (stats.topReason[1] > 0) {
+      const labels: Record<string, string> = {
+        habit: "Most of your distractions are due to habit 💀",
+        bored: "Boredom is your biggest enemy 😴",
+        intentional: "At least your distractions are intentional 🎯",
+      };
+      msgs.push(labels[stats.topReason[0]]);
+    }
+
+    if (stats.autopilotScore > 60) msgs.push("Autopilot mode is strong — try shorter sessions 🧠");
+    if (stats.sessionCount >= 5) msgs.push(`You've completed ${stats.sessionCount} sessions — consistency matters! 💪`);
+
+    return msgs;
+  }, [stats]);
+
+  const formatMin = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+  };
+
+  const pct = (val: number) =>
+    stats.totalDistractions > 0 ? Math.round((val / stats.totalDistractions) * 100) : 0;
+
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      <header className="border-b border-border/50 px-6 py-4">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center neon-glow">
+              <span className="text-primary font-bold text-sm">AP</span>
+            </div>
+            <h1 className="text-lg font-bold tracking-tight">
+              Auto Pilot <span className="text-primary">Breaker</span>
+            </h1>
+          </div>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => navigate("/")}
+            className="px-4 py-2 rounded-xl glass text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            ← Back to Timer
+          </motion.button>
+        </div>
+      </header>
+
+      <main className="flex-1 px-6 py-10 max-w-4xl mx-auto w-full space-y-8">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <h2 className="text-2xl font-bold neon-text mb-1">📊 Analysis & Insights</h2>
+          <p className="text-sm text-muted-foreground">Understand your autopilot patterns</p>
+        </motion.div>
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: "Total Time", value: formatMin(stats.totalSeconds), icon: "⏱️" },
+            { label: "Sessions", value: stats.sessionCount.toString(), icon: "📋" },
+            { label: "Distractions", value: stats.totalDistractions.toString(), icon: "💀" },
+            { label: "Focus Score", value: `${stats.focusScore}%`, icon: stats.focusScore >= 50 ? "🟢" : "🔴" },
+          ].map((stat, i) => (
+            <motion.div
+              key={stat.label}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+              className="glass rounded-xl p-4 text-center space-y-1"
+            >
+              <div className="text-2xl">{stat.icon}</div>
+              <div className="text-2xl font-bold font-mono text-foreground">{stat.value}</div>
+              <div className="text-xs text-muted-foreground uppercase tracking-wider">{stat.label}</div>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Autopilot Score */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="glass rounded-xl p-6 space-y-3"
+        >
+          <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Autopilot Score</h3>
+          <div className="flex items-center gap-4">
+            <div className="flex-1 h-4 rounded-full bg-secondary overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${stats.autopilotScore}%` }}
+                transition={{ duration: 1, ease: "easeOut" }}
+                className="h-full rounded-full"
+                style={{
+                  background: `linear-gradient(90deg, hsl(var(--primary)), ${
+                    stats.autopilotScore > 60 ? "hsl(var(--destructive))" : "hsl(45 90% 55%)"
+                  })`,
+                }}
+              />
+            </div>
+            <span className="text-xl font-bold font-mono text-foreground">{stats.autopilotScore}%</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {stats.autopilotScore < 30
+              ? "Low autopilot — you're in control! 🎯"
+              : stats.autopilotScore < 60
+                ? "Moderate autopilot — stay aware 👀"
+                : "High autopilot — your brain is on cruise control 💀"}
+          </p>
+        </motion.div>
+
+        {/* Charts */}
+        {stats.totalDistractions > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Pie Chart - Distraction Reasons */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="glass rounded-xl p-6 space-y-4"
+            >
+              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                Distraction Breakdown
+              </h3>
+              <ChartContainer config={chartConfig} className="aspect-square max-h-[220px] mx-auto">
+                <PieChart>
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80}>
+                    {pieData.map((entry) => (
+                      <Cell key={entry.name} fill={entry.fill} stroke="transparent" />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ChartContainer>
+              <div className="flex justify-center gap-4 text-xs">
+                {pieData.map((d) => (
+                  <div key={d.name} className="flex items-center gap-1.5">
+                    <div className="h-2.5 w-2.5 rounded-sm" style={{ background: d.fill }} />
+                    <span className="text-muted-foreground">
+                      {d.name} {pct(d.value)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+
+            {/* Bar Chart - Focus vs Distracted */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="glass rounded-xl p-6 space-y-4"
+            >
+              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                Focus vs Distracted (min)
+              </h3>
+              <ChartContainer config={chartConfig} className="aspect-square max-h-[220px]">
+                <BarChart data={barData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 10% 18%)" />
+                  <XAxis dataKey="name" tick={{ fill: "hsl(240 5% 50%)", fontSize: 12 }} />
+                  <YAxis tick={{ fill: "hsl(240 5% 50%)", fontSize: 12 }} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                    {barData.map((entry) => (
+                      <Cell key={entry.name} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ChartContainer>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Insights */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="glass rounded-xl p-6 space-y-3"
+        >
+          <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">💡 Insights</h3>
+          <div className="space-y-2">
+            {insights.map((msg, i) => (
+              <motion.p
+                key={i}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.6 + i * 0.1 }}
+                className="text-sm text-foreground py-2 px-3 rounded-lg bg-secondary/50"
+              >
+                {msg}
+              </motion.p>
+            ))}
+          </div>
+        </motion.div>
+      </main>
+    </div>
+  );
+};
+
+export default Analysis;

@@ -1,15 +1,19 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import Timer from "@/components/Timer";
 import DistractionDialog from "@/components/DistractionDialog";
 import StatsPanel from "@/components/StatsPanel";
 import GenZMessage from "@/components/GenZMessage";
 import FocusWarning from "@/components/FocusWarning";
 import useDistractionDetector from "@/hooks/useDistractionDetector";
+import { useSessionStorage } from "@/hooks/useSessionStorage";
 
 type DistractionReason = "habit" | "bored" | "intentional";
 
 const Index = () => {
+  const navigate = useNavigate();
+  const { addSession } = useSessionStorage();
   const [isRunning, setIsRunning] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -51,6 +55,10 @@ const Index = () => {
   const handleStop = () => setIsRunning(false);
 
   const handleReset = () => {
+    // Save session to localStorage before resetting
+    if (elapsed >= 5) {
+      addSession(elapsed, distractions);
+    }
     setIsRunning(false);
     setElapsed(0);
     setDistractions({ habit: 0, bored: 0, intentional: 0 });
@@ -76,16 +84,26 @@ const Index = () => {
               Auto Pilot <span className="text-primary">Breaker</span>
             </h1>
           </div>
-          {isRunning && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex items-center gap-2"
+          <div className="flex items-center gap-3">
+            {isRunning && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex items-center gap-2"
+              >
+                <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                <span className="text-xs text-muted-foreground uppercase tracking-widest">Smart Detection Active</span>
+              </motion.div>
+            )}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate("/analysis")}
+              className="px-4 py-2 rounded-xl glass text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
-              <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-              <span className="text-xs text-muted-foreground uppercase tracking-widest">Smart Detection Active</span>
-            </motion.div>
-          )}
+              📊 Analysis
+            </motion.button>
+          </div>
         </div>
       </header>
 
