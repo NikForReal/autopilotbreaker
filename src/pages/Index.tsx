@@ -84,16 +84,26 @@ const Index = () => {
               Auto Pilot <span className="text-primary">Breaker</span>
             </h1>
           </div>
-          {isRunning && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex items-center gap-2"
+          <div className="flex items-center gap-3">
+            {isRunning && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex items-center gap-2"
+              >
+                <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                <span className="text-xs text-muted-foreground uppercase tracking-widest">Smart Detection Active</span>
+              </motion.div>
+            )}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate("/analysis")}
+              className="px-4 py-2 rounded-xl glass text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
-              <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-              <span className="text-xs text-muted-foreground uppercase tracking-widest">Smart Detection Active</span>
-            </motion.div>
-          )}
+              📊 Analysis
+            </motion.button>
+          </div>
         </div>
       </header>
 
